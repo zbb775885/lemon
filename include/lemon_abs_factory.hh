@@ -42,7 +42,7 @@ class AbsFactory
      * @name:Register
      * @brief:Register according to the key and variable parameter template parameter Args
      * @param {const_Key} &key
-     * @return {*}
+     * @return {bool}
      */
     template <typename _Derive>
     static bool Register(const _Key &key)
