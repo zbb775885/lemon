@@ -52,8 +52,8 @@ class AbsFactory
         auto &&func = [](const Args &...args) -> Type { return new _Derive(args...); };
         auto &&pair = PairFactory(key, func);
         auto ret = factory_map.insert(pair);
-        std::cout << "register " << key << std::endl;
-        std::cout << "addr is " << std::__addressof(GetFactoryMap()) << std::endl;
+        // std::cout << "register " << key << std::endl;
+        // std::cout << "addr is " << std::__addressof(GetFactoryMap()) << std::endl;
         return ret.second;
     }
 
@@ -66,8 +66,8 @@ class AbsFactory
      */
     static Type Create(const _Key &key, const Args &...args)
     {
-        std::cout << "size is " << GetFactoryMap().size() << std::endl;
-        std::cout << "addr is " << std::__addressof(GetFactoryMap()) << std::endl;
+        // std::cout << "size is " << GetFactoryMap().size() << std::endl;
+        // std::cout << "addr is " << std::__addressof(GetFactoryMap()) << std::endl;
         auto &&iter = GetFactoryMap().find(key);
         if (iter != GetFactoryMap().end()) {
             return iter->second(args...);
