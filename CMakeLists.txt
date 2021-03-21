@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 2.8)
 project(lemon)
 
-#add_library(lemon SHARED include/lemon_abs_factory.hh)
+set(ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(demo examples/main.cc)
-target_include_directories(demo PRIVATE include)
+add_subdirectory(examples)
+add_subdirectory(src)
 
-#add_library(lemon SHARED)
-#target_include_directories(lemon PRIVATE include)
 
 
