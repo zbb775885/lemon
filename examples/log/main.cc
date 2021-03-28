@@ -4,13 +4,13 @@
  * @Author: 周波
  * @Date: 2021-03-20 08:58:42
  * @LastEditors: 周波
- * @LastEditTime: 2021-03-21 23:09:18
+ * @LastEditTime: 2021-03-28 22:38:38
  * @FilePath: \lemon\examples\log\main.cc
  */
 #include <lemon_log.hh>
 #include <cstdint>
 
-int32_t main()
+int32_t main(int32_t argc, char *arg[])
 {
     double value = 0.9;
 

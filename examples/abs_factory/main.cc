@@ -4,8 +4,8 @@
  * @Author: 周波
  * @Date: 2021-03-20 08:58:42
  * @LastEditors: 周波
- * @LastEditTime: 2021-03-21 21:57:11
- * @FilePath: \lemon\examples\main.cc
+ * @LastEditTime: 2021-03-27 21:23:33
+ * @FilePath: \lemon\examples\abs_factory\main.cc
  */
 #include <base.hh>
 #include <cstdint>
@@ -31,7 +31,7 @@
 //     int32_t a_;
 // };
 
-main()
+int32_t main(int32_t argc, char *arg[])
 {
     // lemon::AbsFactory<Base>::Register<Derive>("aaa");
     // Base *base = lemon::AbsFactory<Base>::Create("aaa");
