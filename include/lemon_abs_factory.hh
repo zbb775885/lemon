@@ -58,6 +58,22 @@ class AbsFactory
     }
 
     /**
+     * @name:UnRegister
+     * @brief:UnRegister according to the key and variable parameter template parameter Args
+     * @param {const_Key} &key
+     * @return {bool}
+     */
+    static bool UnRegister(const _Key &key)
+    {
+        auto &factory_map = GetFactoryMap();
+        auto erase_cnt = factory_map.erase(key);
+        bool ret = erase_cnt > 0 ? true : false;
+        // std::cout << "register " << key << std::endl;
+        // std::cout << "addr is " << std::__addressof(GetFactoryMap()) << std::endl;
+        return ret;
+    }
+
+    /**
      * @name:Create
      * @brief:Create an object based on the key value, if there is a parameter, then pass in the parameter
      * @param {const _Key} &key
