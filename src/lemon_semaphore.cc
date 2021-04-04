@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-03 21:36:36
+ * @LastEditTime: 2021-04-04 12:20:40
  * @FilePath: \lemon\src\lemon_semaphore.cc
  */
 #include <lemon_semaphore.hh>
@@ -29,13 +29,13 @@ ShareSemaphore::ShareSemaphore(int32_t sema_key, int32_t init_value) throw()
         Print("semget semaphore key", sema_key_, " didn't exist ");
         ///如果共享内存管理没有初始化那么先完成初始化
         sema_id_ = semget(sema_key_, 1, 0666 | IPC_CREAT);
-        MISC_CHK_CONDITION_REPORT_EXEC(sema_id_ >= 0, , throw sema_id_, "semget semaphore key ", sema_key_, "failed ", sema_key_);
+        MISC_CHK_CONDITION_REPORT_EXEC(sema_id_ >= 0, , throw "semget fail", "semget semaphore key ", sema_key_, "failed ", sema_key_);
         create_ = true;
     }
 
     int32_t ret = 0;
     ret = semctl(sema_id_, 0, SETVAL, init_value);  //0代表对1个信号来量初始化，即有1个资源
-    MISC_CHK_CONDITION_REPORT_EXEC(ret >= 0, , throw ret,
+    MISC_CHK_CONDITION_REPORT_EXEC(ret >= 0, , throw "semctl fail",
                                    "semctl set semaphore ", sema_id_,
                                    " init ", init_value, "failed ", ret);
 

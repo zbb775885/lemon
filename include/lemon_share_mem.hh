@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-03 21:41:35
+ * @LastEditTime: 2021-04-04 12:55:08
  * @FilePath: \lemon\include\lemon_share_mem.hh
  */
 #ifndef __LEMON_SHARED_MEM_HH__
@@ -18,14 +18,22 @@
 #include <lemon_log.hh>
 #include <lemon_misc.hh>
 #include <lemon_semaphore.hh>
+#include <lemon_unique_lock.hh>
 
 namespace lemon
 {
 /**
+*@ brief 定义空的Base类主要用于存储的统一，没有其他意义
+*/
+typedef struct ShareMemBase {
+    uint32_t shm_idx;  ///节点在mgr中的索引
+} ShareMemBase;
+
+/**
 *@ brief 共享内存
 */
-template <typename _MemNode, uint32_t _NodeSize = 1>
-class ShareMem
+template <typename _MemNode>
+class ShareMem : public ShareMemBase
 {
     public:
     /**
@@ -34,26 +42,38 @@ class ShareMem
      * @param {void}
      * @return {*}
      */
-    ShareMem(int32_t shm_key, int32_t sema_key)
+    ShareMem(int32_t shm_key, int32_t sema_key, uint32_t node_size) throw()
             : shm_key_(shm_key),
               share_mem_id_(-1),
               share_mem_node_(nullptr),
               create_(false),
-              share_seam_(sema_key, 1)
+              share_seam_(sema_key, 1),
+              node_size_(node_size)
     {
-        ///TODO:构造的时候可能需要加个锁
-        share_mem_id_ = shmget(shm_key_, sizeof(_MemNode) * _NodeSize, 0666);
-        if (share_mem_id_ < 0) {
-            Print("shmget share mem key", shm_key_, " didn't exist ");
-            ///如果共享内存管理没有初始化那么先完成初始化
-            share_mem_id_ = shmget(shm_key_, sizeof(_MemNode) * _NodeSize, 0666 | IPC_CREAT);
-            MISC_CHK_CONDITION_REPORT(share_mem_id_ >= 0, , "shmget share mem key ", shm_key_, "failed");
-            create_ = true;
+        ///相同的shm_key同时只能一个创建
+        {
+            UniqueLock<ShareSemaphore> unique_lock(share_seam_);
+            share_mem_id_ = shmget(shm_key_, sizeof(_MemNode) * node_size_, 0666);
+            if (share_mem_id_ < 0) {
+                Print("shmget share mem key", shm_key_, " didn't exist ");
+                ///如果共享内存管理没有初始化那么先完成初始化
+                share_mem_id_ = shmget(shm_key_, sizeof(_MemNode) * node_size_, 0666 | IPC_CREAT);
+                MISC_CHK_CONDITION_REPORT_EXEC(share_mem_id_ >= 0, , throw "shmget fail",
+                                               "shmget share mem key ", shm_key_, "failed");
+                create_ = true;
+            }
         }
 
         //将共享内存连接到当前进程的地址空间
         share_mem_node_ = static_cast<_MemNode *>(shmat(share_mem_id_, nullptr, 0));
-        MISC_CHK_UN_NULL_REPORT(share_mem_node_, , "shmat share mem id ", share_mem_id_, " to virt addr failed");
+        MISC_CHK_UN_NULL_REPORT_EXEC(share_mem_node_, , throw "shmat fail",
+                                     "shmat share mem id ", share_mem_id_, " to virt addr failed");
+
+        ///创建共享内存的需要清零一下
+        if (true == create_) {
+            UniqueLock<ShareSemaphore> unique_lock(share_seam_);
+            MEMSET(share_mem_node_, 0, sizeof(_MemNode) * node_size_);
+        }
 
         Print("shmget share mem key ", shm_key_, " addr is ", share_mem_node_);
     }
@@ -118,6 +138,9 @@ class ShareMem
 
     ///Posix 信号量
     ShareSemaphore share_seam_;
+
+    ///_MemNode大小的个数
+    uint32_t node_size_;
 };
 
 }  // namespace lemon

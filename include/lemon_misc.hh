@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-03 15:29:43
+ * @LastEditTime: 2021-04-03 22:13:12
  * @FilePath: \lemon\include\lemon_misc.hh
  */
 #ifndef __LEMON_MISC_HH__
@@ -15,6 +15,9 @@
 
 namespace lemon
 {
+///重定义一下宏，后续如果需要增加特殊处理的话可以在这里一次处理掉
+#define MEMSET(addr, value, size) memset(addr, value, size)
+
 /**
  *@ brief 检查condition，如果不为真则执行需必要的代码及打印，执行完后返回ret，必要代码可在ret后加
  */

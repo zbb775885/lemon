@@ -4,12 +4,15 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-03 21:41:57
+ * @LastEditTime: 2021-04-04 13:30:45
  * @FilePath: \lemon\include\lemon_share_mem_mgr.hh
  */
 #ifndef __LEMON_SHARED_MEM_MGR_HH__
 #define __LEMON_SHARED_MEM_MGR_HH__
 
+#include <unordered_map>
+#include <mutex>
+#include <memory>
 #include <lemon_singleton.hh>
 #include <lemon_share_mem.hh>
 
@@ -42,14 +45,14 @@ namespace lemon
 #define SHARE_MEM_NAME_LEN (16)
 
 /**
-*@ brief 共享内存元素
+*@ brief 根据输入的索引共享内存块的信号量key生成
 */
-typedef struct SharedMemNode {
-    key_t shm_key;                      ///当前共享内存的key
-    char shm_name[SHARE_MEM_NAME_LEN];  ///共享内存名
-    uint32_t shm_size;                  ///共享内存的大小
-    uint32_t ref_cnt;                   ///当前共享内存的引用计数
-} SharedMemNode;
+#define ALLOC_SHARE_MEM_KEY(idx) (SHARED_MEM_DEFAULT_KEY + 1 + idx)
+
+/**
+*@ brief 根据输入的索引共享内存块的shm生成
+*/
+#define ALLOC_SHARE_MEM_SEAM_KEY(idx) (SHARED_MEM_SEAM_KEY + 1 + idx)
 
 /**
 *@ brief 共享内存管理器
@@ -57,17 +60,139 @@ typedef struct SharedMemNode {
 class ShareMemMgr
 {
     public:
-    ///从共享内存管理器中根据名字获取节点，引用计数加1
-    SharedMemNode *GetShareMemNode(char *shm_name);
+    /**
+    *@ brief 共享内存记录的每个节点的必要信息
+    */
+    typedef struct SharedMemNode {
+        int32_t shm_key;                    ///当前共享内存的key
+        int32_t sema_key;                   ///当前共享内存的同步信号量
+        char shm_name[SHARE_MEM_NAME_LEN];  ///共享内存名
+        uint32_t shm_size;                  ///共享内存的大小
+        uint32_t ref_cnt;                   ///当前共享内存节点的引用计数
+    } SharedMemNode;
 
-    ///释放节点引用计数减1
-    int32_t PutShareMemNode(SharedMemNode *mem_node);
-
+    public:
     ///从共享内存管理器中申请一个共享内存id
-    SharedMemNode *AllocShareMemNode(char *shm_name, uint32_t size);
+    template <typename _Type>
+    const std::shared_ptr<_Type> AllocShareMemNode(char *shm_name, uint32_t type_cnt = 1)
+    {
+        MISC_CHK_UN_NULL_REPORT(shm_name, nullptr, "shm_name is null");
 
-    ///从共享内存管理器中申请一个共享内存id
-    int32_t FreeShareMemNode(SharedMemNode *mem_node);
+        ///TODO:锁的范围再考虑一下
+        SharedMemNode *shm_node = nullptr;
+        _Type *type_addr = nullptr;
+        ///先查询一下当前节点名字是由在本地的map中，有的话可以直接获取到idx
+        {
+            std::unique_lock<std::mutex> map_lock(node_map_mutex_);
+            auto &&iter = node_name_map_.find(shm_name);
+            if (node_name_map_.end() != iter) {
+                auto &sp_mem_base = iter->second;  ///mem_info类型为std::shared_ptr<ShareMemBase>
+                type_addr = std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base)->share_mem_node_;
+                shm_node = &share_mem_mgr_.share_mem_node_[sp_mem_base->shm_idx];
+            } else {
+                MISC_CHK_CONDITION_REPORT(node_name_map_.size() >= SHARED_MEM_MAX_NODE, nullptr,
+                                          "no empty shm node to alloc");
+            }
+        }
+        ///map中找不到的话那么就需要遍历一下所有的节点观察是否已经申请过该节点
+        UniqueLock<ShareSemaphore> unique_lock(share_mem_mgr_.share_seam_);
+        if (nullptr == shm_node) {
+            SharedMemNode *empty_node = nullptr;
+            uint32_t empty_idx = 0;
+            for (uint32_t i = 0; i < SHARED_MEM_MAX_NODE; i++) {
+                if (share_mem_mgr_.share_mem_node_[i].ref_cnt > 0) {
+                    if (0 == strcmp(share_mem_mgr_.share_mem_node_[i].shm_name, shm_name)) {
+                        shm_node = &share_mem_mgr_.share_mem_node_[i];
+                        break;
+                    }
+                } else {
+                    empty_node = &share_mem_mgr_.share_mem_node_[i];
+                    empty_idx = i;
+                }
+            }
+
+            ///如果shm_node已经找到了那么由外部做引用计数增加调整，否则看下是否有空的节点，有的话申请节点
+            if ((nullptr == shm_node) && (nullptr != empty_node)) {
+                ///根据索引idx生成shm和sema的key,再new一个对象
+                ShareMemBase *mem_base = nullptr;
+                try {
+                    mem_base = new ShareMem<_Type>(ALLOC_SHARE_MEM_KEY(empty_idx),
+                                                   ALLOC_SHARE_MEM_SEAM_KEY(empty_idx),
+                                                   type_cnt);
+                } catch (const char *error) {
+                    Print("error is ", error);
+                }
+
+                MISC_CHK_UN_NULL_REPORT(mem_base, nullptr, "alloc is null");
+                {
+                    ///存入map表
+                    std::shared_ptr<ShareMemBase> sp_mem_base = std::make_shared<ShareMemBase>(mem_base);
+                    type_addr = dynamic_cast<ShareMem<_Type>>(mem_base)->share_mem_node_;
+                    std::unique_lock<std::mutex> map_lock(node_map_mutex_);
+                    node_name_map_[shm_name] = sp_mem_base;
+                    node_addr_map_[type_addr] = sp_mem_base;
+                }
+
+                ///填写节点信息
+                empty_node->shm_key = ALLOC_SHARE_MEM_KEY(empty_idx);
+                empty_node->sema_key = ALLOC_SHARE_MEM_SEAM_KEY(empty_idx);
+                snprintf(empty_node->shm_name, SHARE_MEM_NAME_LEN, "%s", shm_name);
+                empty_node->shm_size = sizeof(_Type) * type_cnt;
+                empty_node->ref_cnt = 0;  ///引用计数后续会增加，这里就不加了
+
+                ///可用节点附上，便于后面操作
+                shm_node = empty_node;
+            }
+        }
+
+        if (nullptr != shm_node) {
+            shm_node->ref_cnt++;
+            return std::shared_ptr<_Type>(type_addr, [&](_Type *delete_type_addr) {
+                return FreeShareMemNode(delete_type_addr);
+            });
+        }
+
+        return nullptr;
+    }
+
+    private:
+    ///释放一个节点回到共享内存管理器
+    int32_t FreeShareMemNode(void *share_addr)
+    {
+        MISC_CHK_UN_NULL_REPORT(share_addr, -1, "delete share addr is null");
+        SharedMemNode *shm_node = nullptr;
+        {
+            ///查找一下整个地址是否在map中，不在的话返回失败
+            std::unique_lock<std::mutex> map_lock(node_map_mutex_);
+            auto &&iter = node_addr_map_.find(share_addr);
+            if (node_addr_map_.end() != iter) {
+                auto &sp_mem_base = iter->second;  ///mem_info类型为std::shared_ptr<ShareMemBase>
+                shm_node = &share_mem_mgr_.share_mem_node_[sp_mem_base->shm_idx];
+            } else {
+                Print("share addr ", share_addr, "is not exist");
+                return -1;
+            }
+        }
+
+        {
+            UniqueLock<ShareSemaphore> unique_lock(share_mem_mgr_.share_seam_);
+            shm_node->ref_cnt--;
+            ///引用计数为0说明需要销毁当前的共享内存，否则不做任何处理
+            if (0 == shm_node->ref_cnt) {
+                {
+                    ///删除map中的信息
+                    std::unique_lock<std::mutex> map_lock(node_map_mutex_);
+                    node_addr_map_.erase(share_addr);
+                    node_name_map_.erase(shm_node->shm_name);
+                }
+
+                ///删除节点信息
+                MEMSET(shm_node, 0, sizeof(*shm_node));
+            }
+        }
+
+        return 0;
+    }
 
     private:
     /**
@@ -86,12 +211,21 @@ class ShareMemMgr
      */
     ~ShareMemMgr(void);
 
+    private:
     ///单例友元类
     friend Singleton<ShareMemMgr>;
 
-    private:
     ///mgr的共享节点
-    ShareMem<SharedMemNode, SHARED_MEM_MAX_NODE> share_mem_mgr_;
+    ShareMem<SharedMemNode> share_mem_mgr_;
+
+    ///mgr共享节点映射表,根据节点名字映射到共享内存信息，主要用于alloc的时候
+    std::unordered_map<std::string, std::shared_ptr<ShareMemBase>> node_name_map_;
+
+    ///mgr共享节点映射表,根据节点地址映射到共享内存信息，主要用于delete的时候
+    std::unordered_map<void *, std::shared_ptr<ShareMemBase>> node_addr_map_;
+
+    ///节点名字映射表的互斥锁
+    std::mutex node_map_mutex_;
 };
 
 }  // namespace lemon
