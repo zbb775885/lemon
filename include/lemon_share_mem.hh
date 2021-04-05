@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 15:58:46
+ * @LastEditTime: 2021-04-05 16:35:48
  * @FilePath: \lemon\include\lemon_share_mem.hh
  */
 #ifndef __LEMON_SHARED_MEM_HH__
@@ -25,7 +25,13 @@ namespace lemon
 /**
 *@ brief 定义空的Base类主要用于存储的统一，没有其他意义
 */
-typedef struct ShareMemBase {
+typedef class ShareMemBase
+{
+    public:
+    ShareMemBase() = default;
+    virtual ~ShareMemBase() = default;
+
+    public:
     uint32_t shm_idx;  ///节点在mgr中的索引
 } ShareMemBase;
 
@@ -43,7 +49,8 @@ class ShareMem : public ShareMemBase
      * @return {*}
      */
     ShareMem(int32_t shm_key, int32_t sema_key, uint32_t node_size) throw()
-            : shm_key_(shm_key),
+            : ShareMemBase(),
+              shm_key_(shm_key),
               share_mem_id_(-1),
               share_mem_node_(nullptr),
               share_seam_(sema_key, 1),
@@ -80,7 +87,7 @@ class ShareMem : public ShareMemBase
      * @param {void}
      * @return {*}
      */
-    ~ShareMem(void)
+    virtual ~ShareMem(void)
     {
         int32_t ret = 0;
 

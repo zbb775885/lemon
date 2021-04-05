@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 16:13:39
+ * @LastEditTime: 2021-04-05 16:36:32
  * @FilePath: \lemon\include\lemon_share_mem_mgr.hh
  */
 #ifndef __LEMON_SHARED_MEM_MGR_HH__
@@ -100,8 +100,8 @@ class ShareMemMgr
             auto &&iter = node_name_map_.find(shm_name);
             if (node_name_map_.end() != iter) {
                 auto &sp_mem_base = iter->second;  ///mem_info类型为std::shared_ptr<ShareMemBase>
-                type_addr = (std::static_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_mem_node_;
-                share_sema = &(std::static_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_seam_;
+                type_addr = (std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_mem_node_;
+                share_sema = &(std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_seam_;
                 shm_node = &share_mem_mgr_.share_mem_node_[sp_mem_base->shm_idx];
                 Print("shm idx is ", sp_mem_base->shm_idx, "type_addr is ", type_addr);
             } else {
@@ -146,8 +146,8 @@ class ShareMemMgr
                 {
                     ///存入map表
                     std::shared_ptr<ShareMemBase> sp_mem_base = std::shared_ptr<ShareMemBase>(mem_base);
-                    type_addr = (static_cast<ShareMem<_Type> *>(mem_base))->share_mem_node_;
-                    share_sema = &(static_cast<ShareMem<_Type> *>(mem_base))->share_seam_;
+                    type_addr = (dynamic_cast<ShareMem<_Type> *>(mem_base))->share_mem_node_;
+                    share_sema = &(dynamic_cast<ShareMem<_Type> *>(mem_base))->share_seam_;
                     sp_mem_base->shm_idx = shm_idx;
                     std::unique_lock<std::mutex> map_lock(node_map_mutex_);
                     node_name_map_[shm_name] = sp_mem_base;
@@ -212,9 +212,10 @@ class ShareMemMgr
                 {
                     ///删除map中的信息
                     std::unique_lock<std::mutex> map_lock(node_map_mutex_);
+                    auto &sp_shm_mem = node_addr_map_[share_addr];
+                    Print("delete node addr ", share_addr, " use cnt ", sp_shm_mem.use_count());
                     node_addr_map_.erase(share_addr);
                     node_name_map_.erase(shm_node->shm_name);
-                    Print("delete node addr ", share_addr);
                 }
 
                 ///删除节点信息
