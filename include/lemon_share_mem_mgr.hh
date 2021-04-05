@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 16:36:32
+ * @LastEditTime: 2021-04-05 22:23:14
  * @FilePath: \lemon\include\lemon_share_mem_mgr.hh
  */
 #ifndef __LEMON_SHARED_MEM_MGR_HH__
@@ -57,8 +57,50 @@ namespace lemon
 /**
 *@ brief 共享内存的pair模板
 */
-template <typename _Type>
-using ShareMemPair = std::pair<_Type *, ShareSemaphore *>;
+template <typename _Type, typename Pair = std::pair<_Type *, ShareSemaphore *>>
+class ShareMemPair : public Pair
+{
+    public:
+    ShareMemPair(void) = delete;
+    ShareMemPair(_Type *type, ShareSemaphore *sema)
+            : Pair(type, sema){
+
+              };
+
+    public:
+    template <typename _Type1>
+    _Type1 operator=(const _Type1 &&data)
+    {
+        UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
+        *Pair::first = data;
+        return *Pair::first;
+    }
+
+    template <typename _Type1>
+    typename std::remove_reference<_Type1>::type operator=(const ShareMemPair<typename std::remove_reference<_Type1>::type> &&share_mem_pair)
+    {
+        UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
+        *Pair::first = share_mem_pair.first;
+        return *Pair::first;
+    }
+
+    template <typename _Type1>
+    _Type1 operator+(const _Type1 &&data)
+    {
+        return *Pair::first + data;
+    }
+
+    template <typename _Type1>
+    typename std::remove_reference<_Type1>::type operator+(const ShareMemPair<typename std::remove_reference<_Type1>::type> &&share_mem_pair)
+    {
+        return *Pair::first + share_mem_pair.first;
+    }
+
+    _Type &operator*(void)
+    {
+        return *Pair::first;
+    }
+};
 
 /**
 *@ brief 共享内存的pair智能指针模板

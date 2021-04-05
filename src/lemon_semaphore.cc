@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-04 12:20:40
+ * @LastEditTime: 2021-04-05 21:27:58
  * @FilePath: \lemon\src\lemon_semaphore.cc
  */
 #include <lemon_semaphore.hh>
@@ -34,10 +34,13 @@ ShareSemaphore::ShareSemaphore(int32_t sema_key, int32_t init_value) throw()
     }
 
     int32_t ret = 0;
-    ret = semctl(sema_id_, 0, SETVAL, init_value);  //0代表对1个信号来量初始化，即有1个资源
-    MISC_CHK_CONDITION_REPORT_EXEC(ret >= 0, , throw "semctl fail",
-                                   "semctl set semaphore ", sema_id_,
-                                   " init ", init_value, "failed ", ret);
+    ///TODO:后续切换为IPC_STAT来获取当前的状态
+    if (true == create_) {
+        ret = semctl(sema_id_, 0, SETVAL, init_value);  //0代表对1个信号来量初始化，即有1个资源
+        MISC_CHK_CONDITION_REPORT_EXEC(ret >= 0, , throw "semctl fail",
+                                       "semctl set semaphore ", sema_id_,
+                                       " init ", init_value, "failed ", ret);
+    }
 
     Print("semget semaphore key ", sema_key_, " id is ", sema_id_);
 }
@@ -52,15 +55,16 @@ ShareSemaphore::~ShareSemaphore(void)
 {
     int32_t ret = 0;
 
-    Print("semdel semaphore id ", sema_id_);
+    //Print("semdel semaphore id ", sema_id_);
 
     ///删除共享内存
     if (sema_id_ >= 0) {
-        if (true == create_) {
-            ret = semctl(sema_id_, 0, IPC_RMID, 0);
-            MISC_CHK_STATUS_REPORT(ret, , "rm semaphore id ", sema_id_, "failed, ret ", ret);
-            create_ = false;
-        }
+        ///如果信号量需要删除使用ipcrm,因为可能有其他的进程在使用导致整体异常退出。
+        // if (true == create_) {
+        //     ret = semctl(sema_id_, 0, IPC_RMID, 0);
+        //     MISC_CHK_STATUS_REPORT(ret, , "rm semaphore id ", sema_id_, "failed, ret ", ret);
+        //     create_ = false;
+        // }
 
         sema_id_ = -1;
     }
