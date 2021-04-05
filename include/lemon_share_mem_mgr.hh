@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 22:23:14
+ * @LastEditTime: 2021-04-05 22:42:32
  * @FilePath: \lemon\include\lemon_share_mem_mgr.hh
  */
 #ifndef __LEMON_SHARED_MEM_MGR_HH__
@@ -68,32 +68,28 @@ class ShareMemPair : public Pair
               };
 
     public:
-    template <typename _Type1>
-    _Type1 operator=(const _Type1 &&data)
+    _Type operator=(const _Type &data)
     {
         UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
         *Pair::first = data;
         return *Pair::first;
     }
 
-    template <typename _Type1>
-    typename std::remove_reference<_Type1>::type operator=(const ShareMemPair<typename std::remove_reference<_Type1>::type> &&share_mem_pair)
+    _Type operator=(const ShareMemPair<_Type> &share_mem_pair)
     {
         UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
         *Pair::first = share_mem_pair.first;
         return *Pair::first;
     }
 
-    template <typename _Type1>
-    _Type1 operator+(const _Type1 &&data)
+    _Type operator+(const _Type &data)
     {
         return *Pair::first + data;
     }
 
-    template <typename _Type1>
-    typename std::remove_reference<_Type1>::type operator+(const ShareMemPair<typename std::remove_reference<_Type1>::type> &&share_mem_pair)
+    _Type operator+(const ShareMemPair<_Type> &share_mem_pair)
     {
-        return *Pair::first + share_mem_pair.first;
+        return *Pair::first + *share_mem_pair.first;
     }
 
     _Type &operator*(void)

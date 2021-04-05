@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-20 08:58:42
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 22:18:23
+ * @LastEditTime: 2021-04-05 22:43:29
  * @FilePath: \lemon\examples\share_mem\main.cc
  */
 #include <lemon_share_mem_mgr.hh>
@@ -22,6 +22,7 @@ int32_t main(int32_t argc, char *arg[])
         auto &sp_share_mem1 = share_mem_mgr->AllocShareMemNode<uint32_t>("bbb");
         //Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
         // getchar();
+        *sp_share_mem1 = 100;
         while (1) {
             *sp_share_mem = *sp_share_mem + *sp_share_mem1;
             Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
