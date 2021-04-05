@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-03-28 22:41:42
+ * @LastEditTime: 2021-04-05 16:13:19
  * @FilePath: \lemon\include\lemon_singleton.hh
  */
 #ifndef __LEMON_SINGLETON_HH__
@@ -22,6 +22,7 @@ class Singleton
     ///获取单例的实例对象
     static T *GetInstance(void)
     {
+        std::unique_lock<std::mutex> unique_mutex(GetMutex());
         if (nullptr == GetSingleInstance().instance_) {
             GetSingleInstance().instance_ = new T;
             Print("new instance_ ", GetSingleInstance().instance_);
@@ -30,9 +31,17 @@ class Singleton
         return GetSingleInstance().instance_;
     };
 
+    ///获取单例的实例对象状态，是否存在
+    static bool GetInstanceStatus(void)
+    {
+        std::unique_lock<std::mutex> unique_mutex(GetMutex());
+        return (nullptr != GetSingleInstance().instance_) ? true : false;
+    };
+
     ///销毁单例的实际对象
     static void DestroyInstance(void)
     {
+        std::unique_lock<std::mutex> unique_mutex(GetMutex());
         if (nullptr != GetSingleInstance().instance_) {
             Print("delete instance_ ", GetSingleInstance().instance_);
             delete GetSingleInstance().instance_;
@@ -67,6 +76,13 @@ class Singleton
     {
         static Singleton single_instance;
         return single_instance;
+    };
+
+    ///获取实例
+    static std::mutex &GetMutex(void)
+    {
+        static std::mutex mutex;
+        return mutex;
     };
 
     private:

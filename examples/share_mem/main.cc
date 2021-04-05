@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-20 08:58:42
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-03 21:11:27
+ * @LastEditTime: 2021-04-05 15:59:55
  * @FilePath: \lemon\examples\share_mem\main.cc
  */
 #include <lemon_share_mem_mgr.hh>
@@ -14,16 +14,28 @@ using namespace lemon;
 
 int32_t main(int32_t argc, char *arg[])
 {
-    // ShareMemMgr *share_mem_mgr = Singleton<ShareMemMgr>::GetInstance();
-    // Print("share_mem_mgr addr is ", share_mem_mgr);
-    // Singleton<ShareMemMgr>::DestroyInstance();
+    ShareMemMgr *share_mem_mgr = Singleton<ShareMemMgr>::GetInstance();
+    Print("share_mem_mgr addr is ", share_mem_mgr);
+
+    // {
+    auto &sp_share_mem = share_mem_mgr->AllocShareMemNode<uint32_t>("aaa");
+    Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
+    getchar();
+    *sp_share_mem->first = 0x00;
+    Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
+    getchar();
+    Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
+    // }
+
+    Singleton<ShareMemMgr>::DestroyInstance();
 
     Print("-------------------------------");
 
-    ShareMemMgr *share_mem_mgr1 = Singleton<ShareMemMgr>::GetInstance();
-    Print("share_mem_mgr1 addr is ", share_mem_mgr1);
-    getchar();
-    Singleton<ShareMemMgr>::DestroyInstance();
+    // ShareMemMgr *share_mem_mgr1 = Singleton<ShareMemMgr>::GetInstance();
+    // Print("share_mem_mgr1 addr is ", share_mem_mgr1);
+
+    // getchar();
+    // Singleton<ShareMemMgr>::DestroyInstance();
 
     return 0;
 }
