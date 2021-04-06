@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-21 22:42:54
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 22:42:32
+ * @LastEditTime: 2021-04-06 09:13:05
  * @FilePath: \lemon\include\lemon_share_mem_mgr.hh
  */
 #ifndef __LEMON_SHARED_MEM_MGR_HH__
@@ -57,52 +57,75 @@ namespace lemon
 /**
 *@ brief 共享内存的pair模板
 */
-template <typename _Type, typename Pair = std::pair<_Type *, ShareSemaphore *>>
-class ShareMemPair : public Pair
+template <typename _Type>
+class ShareMemElem
 {
     public:
-    ShareMemPair(void) = delete;
-    ShareMemPair(_Type *type, ShareSemaphore *sema)
-            : Pair(type, sema){
+    ///默认构造删除
+    ShareMemElem(void) = delete;
+
+    explicit ShareMemElem(_Type *data_addr, ShareSemaphore *sema)
+            : data_addr_(data_addr),
+              share_mem_sema_(sema){
 
               };
+
+    ///获取共享内存的地址
+    _Type *GetShareMemAddr(void)
+    {
+        return data_addr_;
+    }
+
+    ///获取共享内存的信号量
+    ShareSemaphore *GetShareMemSema(void)
+    {
+        return share_mem_sema_;
+    }
 
     public:
     _Type operator=(const _Type &data)
     {
-        UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
-        *Pair::first = data;
-        return *Pair::first;
+        UniqueLock<ShareSemaphore> unique_sema(*share_mem_sema_);
+        *data_addr_ = data;
+        return *data_addr_;
     }
 
-    _Type operator=(const ShareMemPair<_Type> &share_mem_pair)
+    _Type operator=(const ShareMemElem<_Type> &share_mem_pair)
     {
-        UniqueLock<ShareSemaphore> unique_sema(*Pair::second);
-        *Pair::first = share_mem_pair.first;
-        return *Pair::first;
+        UniqueLock<ShareSemaphore> unique_sema(*share_mem_sema_);
+        *data_addr_ = *share_mem_pair.GetShareMemAddr();
+        return *data_addr_;
     }
 
     _Type operator+(const _Type &data)
     {
-        return *Pair::first + data;
+        return *data_addr_ + data;
     }
 
-    _Type operator+(const ShareMemPair<_Type> &share_mem_pair)
+    _Type operator+(const ShareMemElem<_Type> &share_mem_pair)
     {
-        return *Pair::first + *share_mem_pair.first;
+        ShareMemElem<_Type> &share_mem_pair_tmp = const_cast<ShareMemElem<_Type> &>(share_mem_pair);
+        return *data_addr_ + *share_mem_pair_tmp.GetShareMemAddr();
     }
 
     _Type &operator*(void)
     {
-        return *Pair::first;
+        return *data_addr_;
     }
+
+    private:
+    ///共享内存地址
+    _Type *data_addr_;
+
+    ///共享内存信号量
+    ShareSemaphore *share_mem_sema_;
 };
 
 /**
 *@ brief 共享内存的pair智能指针模板
 */
 template <typename _Type>
-using SpShareMemPair = std::shared_ptr<ShareMemPair<_Type>>;
+using SpShareMemPair = std::shared_ptr<ShareMemElem<_Type>>;
 
 /**
 *@ brief 共享内存管理器
@@ -138,8 +161,10 @@ class ShareMemMgr
             auto &&iter = node_name_map_.find(shm_name);
             if (node_name_map_.end() != iter) {
                 auto &sp_mem_base = iter->second;  ///mem_info类型为std::shared_ptr<ShareMemBase>
-                type_addr = (std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_mem_node_;
-                share_sema = &(std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base))->share_seam_;
+                const auto &sp_share_mem = std::dynamic_pointer_cast<ShareMem<_Type>>(sp_mem_base);
+                MISC_CHK_UN_NULL_REPORT(sp_share_mem.get(), nullptr, "shm name's type not compare");
+                type_addr = sp_share_mem->share_mem_node_;
+                share_sema = &sp_share_mem->share_seam_;
                 shm_node = &share_mem_mgr_.share_mem_node_[sp_mem_base->shm_idx];
                 Print("shm idx is ", sp_mem_base->shm_idx, "type_addr is ", type_addr);
             } else {
@@ -171,7 +196,7 @@ class ShareMemMgr
             {
 
                 ///根据索引idx生成shm和sema的key,再new一个对象
-                ShareMemBase *mem_base = nullptr;
+                ShareMem<_Type> *mem_base = nullptr;
                 try {
                     mem_base = new ShareMem<_Type>(ALLOC_SHARE_MEM_KEY(shm_idx),
                                                    ALLOC_SHARE_MEM_SEAM_KEY(shm_idx),
@@ -184,8 +209,8 @@ class ShareMemMgr
                 {
                     ///存入map表
                     std::shared_ptr<ShareMemBase> sp_mem_base = std::shared_ptr<ShareMemBase>(mem_base);
-                    type_addr = (dynamic_cast<ShareMem<_Type> *>(mem_base))->share_mem_node_;
-                    share_sema = &(dynamic_cast<ShareMem<_Type> *>(mem_base))->share_seam_;
+                    type_addr = mem_base->share_mem_node_;
+                    share_sema = &mem_base->share_seam_;
                     sp_mem_base->shm_idx = shm_idx;
                     std::unique_lock<std::mutex> map_lock(node_map_mutex_);
                     node_name_map_[shm_name] = sp_mem_base;
@@ -206,12 +231,13 @@ class ShareMemMgr
             }
         }
 
+        ///输出智能指针内存
         SpShareMemPair<_Type> sp_pair_data;
         if (nullptr != shm_node) {
             shm_node->ref_cnt++;
-            sp_pair_data = SpShareMemPair<_Type>(new ShareMemPair<_Type>(type_addr, share_sema),
-                                                 [&](ShareMemPair<_Type> *share_addr_pair) {
-                                                     auto share_addr = share_addr_pair->first;
+            sp_pair_data = SpShareMemPair<_Type>(new ShareMemElem<_Type>(type_addr, share_sema),
+                                                 [&](ShareMemElem<_Type> *share_addr_pair) {
+                                                     auto share_addr = share_addr_pair->GetShareMemAddr();
                                                      delete share_addr_pair;
                                                      return FreeShareMemNode(share_addr);
                                                  });

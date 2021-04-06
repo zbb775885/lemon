@@ -4,7 +4,7 @@
  * @Author: 周波
  * @Date: 2021-03-20 08:58:42
  * @LastEditors: 周波
- * @LastEditTime: 2021-04-05 22:43:29
+ * @LastEditTime: 2021-04-06 08:59:24
  * @FilePath: \lemon\examples\share_mem\main.cc
  */
 #include <lemon_share_mem_mgr.hh>
@@ -25,11 +25,11 @@ int32_t main(int32_t argc, char *arg[])
         *sp_share_mem1 = 100;
         while (1) {
             *sp_share_mem = *sp_share_mem + *sp_share_mem1;
-            Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
+            Print("share addr is ", sp_share_mem->GetShareMemAddr(), "value is ", *sp_share_mem->GetShareMemAddr());
         }
 
         getchar();
-        Print("share addr is ", sp_share_mem->first, "value is ", *sp_share_mem->first);
+        Print("share addr is ", sp_share_mem->GetShareMemAddr(), "value is ", *sp_share_mem->GetShareMemAddr());
     }
 
     Singleton<ShareMemMgr>::DestroyInstance();
